@@ -7,7 +7,7 @@ piece to hit the 2026 FRC game's target that minimizes time-to-target.
 This optimization problem formulation uses direct transcription of the flight dynamics, including
 air resistance.
 
-Based on the 2022 trajectory optimization example code by Tyler Venness.
+Based on the 2022 trajectory optimization example code by Tyler Veness.
 https://github.com/SleipnirGroup/Sleipnir/blob/main/examples/frc_2022_shooter/main.py
 """
 
