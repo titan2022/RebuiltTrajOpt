@@ -1,8 +1,8 @@
 """
 FRC 2022 shooter trajectory optimization.
 
-This program uses the Sleipnir NLP solver to find the initial velocity, pitch, and yaw for a game
-piece to hit the 2026 FRC game's target that minimizes time-to-target.
+This program uses the Sleipnir NLP solver to find the initial pitch and yaw for a game
+piece to hit the 2026 FRC game's target given an initial velocity.
 
 This optimization problem formulation uses direct transcription of the flight dynamics, including
 air resistance.
@@ -19,6 +19,7 @@ from numpy.linalg import norm
 from sleipnir.autodiff import VariableMatrix, hypot
 from sleipnir.optimization import ExitStatus, Problem
 
+# Field dimensions
 field_width = 8.043  # m
 field_length = 16.518  # m
 target_wrt_field = np.array(
@@ -31,8 +32,8 @@ target_wrt_field = np.array(
         [0.0],
     ]
 )
+# Physical characteristics
 shooter_wrt_robot = np.array([[0.0], [0.0], [20 * 0.0254], [0.0], [0.0], [0.0]])
-target_radius = 0.5  # m
 g = 9.81  # m/s²
 max_shooter_velocity = 15  # m/s
 ball_mass = 0.5 / 2.205  # kg
@@ -44,6 +45,9 @@ def lerp(a, b, t):
 
 
 def f(x):
+    """
+    Apply the drag equation to a velocity.
+    """
     # x' = x'
     # y' = y'
     # z' = z'
@@ -71,6 +75,9 @@ N = 20
 
 
 def setup_problem(robot_x, robot_y, robot_vx, robot_vy):
+    """
+    Set up the problem for the solver.
+    """
     # Robot initial state
     robot_wrt_field = np.array(
         [[robot_x], [robot_y], [0.0], [robot_vx], [robot_vy], [0.0]]
@@ -131,6 +138,10 @@ def setup_problem(robot_x, robot_y, robot_vx, robot_vy):
 
 
 def min_velocity(robot_x, robot_y, robot_vx, robot_vy):
+    """
+    Solve for minimum velocity.
+    :returns: A tuple of [True, velocity, pitch, yaw, X] if it succeeds at a solve, and a tuple of[False, 0] if it fails.
+    """
     setup = setup_problem(robot_x, robot_y, robot_vx, robot_vy)
     problem = setup[0]
     shooter_wrt_field = setup[1]
@@ -160,7 +171,7 @@ def min_velocity(robot_x, robot_y, robot_vx, robot_vy):
             shooter_wrt_field[3:, :] + max_shooter_velocity * uvec_shooter_to_target
         )
 
-    # Require initial velocity is equal to target
+    # Require initial velocity is less than max shooter velocity
     #
     #   √(v_x² + v_y² + v_z²) = v
     #   v_x² + v_y² + v_z² = v²
@@ -168,7 +179,7 @@ def min_velocity(robot_x, robot_y, robot_vx, robot_vy):
         (v_x[0] - shooter_wrt_field[3, 0]) ** 2
         + (v_y[0] - shooter_wrt_field[4, 0]) ** 2
         + (v_z[0] - shooter_wrt_field[5, 0]) ** 2
-        <= max_shooter_velocity ** 2
+        <= max_shooter_velocity**2
     )
 
     # Minimize initial velocity
@@ -194,6 +205,11 @@ def min_velocity(robot_x, robot_y, robot_vx, robot_vy):
 
 
 def fixed_velocity(robot_x, robot_y, robot_vx, robot_vy, target_vel, prev_X):
+    """
+    Solve for a fixed velocity.
+    :param prev_X: The previous solve's state vectors, to act as an initial guess.
+    :returns: A tuple of [True, velocity, pitch, yaw, X] if it succeeds at a solve, and a tuple of[False, 0] if it fails.
+    """
     setup = setup_problem(robot_x, robot_y, robot_vx, robot_vy)
     problem = setup[0]
     shooter_wrt_field = setup[1]
