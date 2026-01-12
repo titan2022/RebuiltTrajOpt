@@ -24,8 +24,8 @@ field_width = 8.043  # m
 field_length = 16.518  # m
 target_wrt_field = np.array(
     [
-        [(158.6 + (47 / 2)) * 0.0254],
-        [field_width / 2.0],
+        [0],
+        [0],
         [72 * 0.0254],
         [0.0],
         [0.0],
@@ -74,13 +74,13 @@ def f(x):
 N = 20
 
 
-def setup_problem(robot_x, robot_y, robot_vx, robot_vy):
+def setup_problem(distance, robot_vx, robot_vy):
     """
     Set up the problem for the solver.
     """
     # Robot initial state
     robot_wrt_field = np.array(
-        [[robot_x], [robot_y], [0.0], [robot_vx], [robot_vy], [0.0]]
+        [[-distance], [0], [0.0], [robot_vx], [robot_vy], [0.0]]
     )
 
     shooter_wrt_field = robot_wrt_field + shooter_wrt_robot
@@ -137,12 +137,12 @@ def setup_problem(robot_x, robot_y, robot_vx, robot_vy):
     return problem, shooter_wrt_field, v0_wrt_shooter, X
 
 
-def min_velocity(robot_x, robot_y, robot_vx, robot_vy):
+def min_velocity(distance, robot_vx, robot_vy):
     """
     Solve for minimum velocity.
     :returns: A tuple of [True, velocity, pitch, yaw, X] if it succeeds at a solve, and a tuple of[False, 0] if it fails.
     """
-    setup = setup_problem(robot_x, robot_y, robot_vx, robot_vy)
+    setup = setup_problem(distance, robot_vx, robot_vy)
     problem = setup[0]
     shooter_wrt_field = setup[1]
     v0_wrt_shooter = setup[2]
@@ -204,13 +204,13 @@ def min_velocity(robot_x, robot_y, robot_vx, robot_vy):
     return False, 0
 
 
-def fixed_velocity(robot_x, robot_y, robot_vx, robot_vy, target_vel, prev_X):
+def fixed_velocity(distance, robot_vx, robot_vy, target_vel, prev_X):
     """
     Solve for a fixed velocity.
     :param prev_X: The previous solve's state vectors, to act as an initial guess.
     :returns: A tuple of [True, velocity, pitch, yaw, X] if it succeeds at a solve, and a tuple of[False, 0] if it fails.
     """
-    setup = setup_problem(robot_x, robot_y, robot_vx, robot_vy)
+    setup = setup_problem(distance, robot_vx, robot_vy)
     problem = setup[0]
     shooter_wrt_field = setup[1]
     v0_wrt_shooter = setup[2]
@@ -272,36 +272,48 @@ def fixed_velocity(robot_x, robot_y, robot_vx, robot_vy, target_vel, prev_X):
 
 
 if __name__ == "__main__":
-    x = 0
-    y = 0
-    vx = 0
-    vy = 0
+    start_distance = 1
+    end_distance = 5
 
-    velocities = []
-    angles = []
+    ax = plt.figure().add_subplot(projection="3d")
+    ax.set_xlim(start_distance, end_distance)
+    ax.set_xlabel("Distance (m)")
+    ax.set_ylim(5,max_shooter_velocity)
+    ax.set_ylabel("Shooter velocity (m/s)")
+    ax.set_zlim(45, 90)
+    ax.set_zlabel("Hood angle (deg)")
 
-    # Solve for minimum velocity
-    min_vel_solve = min_velocity(x, y, vx, vy)
-    # If the position is possible,
-    if min_vel_solve[0]:
-        velocities.append(min_vel_solve[1])
-        angles.append(np.rad2deg(min_vel_solve[2]))
-        d_V = 0.5
-        vel = min_vel_solve[1] + d_V
-        prev_solve = min_vel_solve
-        while vel < max_shooter_velocity:
-            # Feed previous solve into new solve
-            prev_solve = fixed_velocity(x, y, vx, vy, vel, prev_solve[4])
-            if not prev_solve[0]:
-                break
-            velocities.append(vel)
-            angles.append(np.rad2deg(prev_solve[2]))
-            vel += d_V
-        if prev_solve[0]:
-            prev_solve = fixed_velocity(
-                x, y, vx, vy, max_shooter_velocity, prev_solve[4]
-            )
-            velocities.append(max_shooter_velocity)
-            angles.append(np.rad2deg(prev_solve[2]))
-        plt.plot(velocities, angles)
-        plt.show()
+    samples = 20
+    for i in range(0, samples + 1):
+        distance = lerp(start_distance, end_distance, i / samples)
+        vx = 0
+        vy = 1
+
+        velocities = []
+        angles = []
+
+        # Solve for minimum velocity
+        min_vel_solve = min_velocity(distance, vx, vy)
+        # If the position is possible,
+        if min_vel_solve[0]:
+            velocities.append(min_vel_solve[1])
+            angles.append(np.rad2deg(min_vel_solve[2]))
+            d_V = 0.5
+            vel = min_vel_solve[1] + d_V
+            prev_solve = min_vel_solve
+            while vel < max_shooter_velocity:
+                # Feed previous solve into new solve
+                prev_solve = fixed_velocity(distance, vx, vy, vel, prev_solve[4])
+                if not prev_solve[0]:
+                    break
+                velocities.append(vel)
+                angles.append(np.rad2deg(prev_solve[2]))
+                vel += d_V
+            if prev_solve[0]:
+                prev_solve = fixed_velocity(
+                    distance, vx, vy, max_shooter_velocity, prev_solve[4]
+                )
+                velocities.append(max_shooter_velocity)
+                angles.append(np.rad2deg(prev_solve[2]))
+        ax.scatter(distance, velocities, angles)
+    plt.show()
