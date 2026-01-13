@@ -39,6 +39,7 @@ max_shooter_velocity = 30  # m/s
 ball_mass = 0.5 / 2.205  # kg
 ball_diameter = 5.91 * 0.0254  # m
 
+printResults = False
 
 def lerp(a, b, t):
     return a + t * (b - a)
@@ -188,18 +189,17 @@ def min_velocity(distance, robot_vx, robot_vy):
 
     status = problem.solve()
     if status == ExitStatus.SUCCESS:
-        print(f"Minimum velocity solve at distance {distance:.03f}:")
         # Initial velocity vector with respect to shooter
         v0 = v0_wrt_shooter.value()
-
         velocity = norm(v0)
-        print(f"Velocity = {velocity:.03f} m/s")
-
         pitch = math.atan2(v0[2, 0], math.hypot(v0[0, 0], v0[1, 0]))
-        print(f"Pitch = {np.rad2deg(pitch):.03f}°")
-
         yaw = math.atan2(v0[1, 0], v0[0, 0])
-        print(f"Yaw = {np.rad2deg(yaw):.03f}°")
+
+        if printResults:
+            print(f"Minimum velocity solve at distance {distance:.03f}:")
+            print(f"Velocity = {velocity:.03f} m/s")
+            print(f"Pitch = {np.rad2deg(pitch):.03f}°")
+            print(f"Yaw = {np.rad2deg(yaw):.03f}°")
 
         return True, velocity, pitch, yaw, X
     print(f"Infeasible at distance {distance:.03f} m with status {status.name}")
@@ -264,18 +264,17 @@ def fixed_velocity(distance, robot_vx, robot_vy, target_vel, prev_X):
 
     status = problem.solve()
     if status == ExitStatus.SUCCESS:
-        print(f"Fixed velocity solve at distance {distance:.03f}:")
         # Initial velocity vector with respect to shooter
         v0 = v0_wrt_shooter.value()
-
         velocity = norm(v0)
-        print(f"Velocity = {velocity:.03f} m/s")
-
         pitch = math.atan2(v0[2, 0], math.hypot(v0[0, 0], v0[1, 0]))
-        print(f"Pitch = {np.rad2deg(pitch):.03f}°")
-
         yaw = math.atan2(v0[1, 0], v0[0, 0])
-        print(f"Yaw = {np.rad2deg(yaw):.03f}°")
+
+        if printResults:
+            print(f"Fixed velocity solve at distance {distance:.03f}:")
+            print(f"Velocity = {velocity:.03f} m/s")
+            print(f"Pitch = {np.rad2deg(pitch):.03f}°")
+            print(f"Yaw = {np.rad2deg(yaw):.03f}°")
 
         return True, velocity, pitch, yaw, X
     print(
