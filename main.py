@@ -72,7 +72,7 @@ def f(x):
     )
 
 
-N = 30
+N = 40
 
 
 def setup_problem(distance, robot_vx, robot_vy, max_horizontal_velocity):
@@ -187,7 +187,7 @@ def min_velocity(distance, robot_vx, robot_vy):
     # Minimize initial velocity
     problem.minimize(v0_wrt_shooter.T @ v0_wrt_shooter)
 
-    status = problem.solve()
+    status = problem.solve(tolerance = .01)
     if status == ExitStatus.SUCCESS:
         # Initial velocity vector with respect to shooter
         v0 = v0_wrt_shooter.value()
@@ -223,7 +223,7 @@ def fixed_velocity(distance, robot_vx, robot_vy, target_vel, prev_X):
         # velocity at target.
         # This makes the angle at which the shot goes in more steep, preventing the solver from
         # getting stuck with a shallow and infeasible shot angle
-        math.hypot(prev_v_x[-1].value(), prev_v_y[-1].value()),
+        math.hypot(prev_v_x[-1].value(), prev_v_y[-1].value())
     )
 
     prev_p_x = prev_X[0, :]
@@ -262,7 +262,7 @@ def fixed_velocity(distance, robot_vx, robot_vy, target_vel, prev_X):
         == target_vel**2
     )
 
-    status = problem.solve()
+    status = problem.solve(tolerance = .01)
     if status == ExitStatus.SUCCESS:
         # Initial velocity vector with respect to shooter
         v0 = v0_wrt_shooter.value()
@@ -285,7 +285,7 @@ def fixed_velocity(distance, robot_vx, robot_vy, target_vel, prev_X):
 
 if __name__ == "__main__":
     start_distance = 0.5
-    end_distance = field_length
+    end_distance = 6.5
 
     # Setup pyplot
     ax = plt.figure().add_subplot(projection="3d")
@@ -297,7 +297,7 @@ if __name__ == "__main__":
     ax.set_zlabel("Hood angle (deg)")
 
     distance_samples = 20
-    velocity_samples = 20
+    velocity_samples = 10
     for i in range(0, distance_samples):
         distance = lerp(start_distance, end_distance, i / (distance_samples - 1))
         vx = 0
@@ -314,9 +314,9 @@ if __name__ == "__main__":
             velocities.append(min_vel_solve[1])
             angles.append(np.rad2deg(min_vel_solve[2]))
             prev_solve = min_vel_solve
-            for j in range(0, velocity_samples):
+            for j in range(velocity_samples):
                 vel = lerp(
-                    min_vel_solve[1], max_shooter_velocity, j / (velocity_samples - 1)
+                    min_vel_solve[1], max_shooter_velocity, 1 / (1.5**(velocity_samples - j - 1))
                 )
                 # Feed previous solve into new solve as an initial guess
                 solve = fixed_velocity(distance, vx, vy, vel, prev_solve[4])
