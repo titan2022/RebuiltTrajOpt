@@ -205,6 +205,66 @@ def min_velocity(distance, robot_vx, robot_vy):
     print(f"Infeasible at distance {distance:.03f} m with status {status.name}")
     return False, 0
 
+# https://chatgpt.com/share/6967cf23-6378-8013-9dd0-2f54a5e030ed
+def min_velocity_fixed_pitch(distance, robot_vx, robot_vy, pitch_deg=71.0):
+    """
+    Solve for minimum velocity with a fixed launch pitch angle (relative to shooter).
+    Yaw is unconstrained.
+    :returns: (True, velocity, pitch, yaw, X) on success, otherwise (False, 0)
+    """
+    problem, shooter_wrt_field, v0_wrt_shooter, X = setup_problem(
+        distance, robot_vx, robot_vy, 6.5
+    )
+
+    p_x = X[0, :]
+    p_y = X[1, :]
+    p_z = X[2, :]
+
+    v = X[3:, :]
+    v_x = X[3, :]
+    v_y = X[4, :]
+    v_z = X[5, :]
+
+    # --- Initial guesses (same as min_velocity) ---
+    theta = np.deg2rad(pitch_deg)
+    
+    for k in range(N):
+        p_x[k].set_value(lerp(shooter_wrt_field[0, 0], target_wrt_field[0, 0], k / N))
+        p_y[k].set_value(lerp(shooter_wrt_field[1, 0], target_wrt_field[1, 0], k / N))
+        p_z[k].set_value(lerp(shooter_wrt_field[2, 0], target_wrt_field[2, 0], k / N))
+
+    uvec_shooter_to_target = target_wrt_field[:3, :] - shooter_wrt_field[:3, :]
+    uvec_shooter_to_target /= norm(uvec_shooter_to_target)
+    for k in range(N):
+        v[:, k].set_value(
+            shooter_wrt_field[3:, :] + max_shooter_velocity * uvec_shooter_to_target
+        )
+
+    # --- Fixed pitch constraint at launch (relative to shooter) ---
+    v0x = v_x[0] - shooter_wrt_field[3, 0]
+    v0y = v_y[0] - shooter_wrt_field[4, 0]
+    v0z = v_z[0] - shooter_wrt_field[5, 0]
+
+    # pitch = atan2(v0z, hypot(v0x,v0y)) == theta
+    # Avoid atan2 equality by using: v0z = tan(theta) * hypot(v0x, v0y)
+    problem.subject_to(v0z == math.tan(theta) * hypot(v0x, v0y))
+
+    # --- Max shooter speed constraint (same as min_velocity) ---
+    problem.subject_to(v0x**2 + v0y**2 + v0z**2 <= max_shooter_velocity**2)
+
+    # Minimize launch speed (squared)
+    problem.minimize(v0_wrt_shooter.T @ v0_wrt_shooter)
+
+    status = problem.solve()
+    if status == ExitStatus.SUCCESS:
+        v0 = v0_wrt_shooter.value()
+        velocity = norm(v0)
+        pitch = math.atan2(v0[2, 0], math.hypot(v0[0, 0], v0[1, 0]))
+        yaw = math.atan2(v0[1, 0], v0[0, 0])
+        return True, velocity, pitch, yaw, X
+
+    print(f"Infeasible at distance {distance:.03f} m (fixed pitch {pitch_deg:.01f}°) with status {status.name}")
+    return False, 0
 
 def fixed_velocity(distance, robot_vx, robot_vy, target_vel, prev_X):
     """
@@ -284,48 +344,39 @@ def fixed_velocity(distance, robot_vx, robot_vy, target_vel, prev_X):
 
 
 if __name__ == "__main__":
-    start_distance = 0.5
-    end_distance = 6.5
+    # The closest you can get is (47 in)/2 = 0.5969 m
+    # The center of a bot directly up to the HUB is (47 in)/2 + (110 in)/4 + 2.25 in + 1 in = 1.37795 m
+    start_distance = 1.3
+    end_distance = field_length
 
-    # Setup pyplot
-    ax = plt.figure().add_subplot(projection="3d")
-    ax.set_xlim(start_distance, end_distance)
-    ax.set_xlabel("Distance (m)")
-    ax.set_ylim(5, max_shooter_velocity)
-    ax.set_ylabel("Shooter velocity (m/s)")
-    ax.set_zlim(45, 90)
-    ax.set_zlabel("Hood angle (deg)")
+    distance_samples = 100  # increase for smoother curve
+    vx = 0
+    vy = 0
 
-    distance_samples = 20
-    velocity_samples = 10
-    for i in range(0, distance_samples):
+    distances = []
+    best_velocities = []
+
+    for i in range(distance_samples):
         distance = lerp(start_distance, end_distance, i / (distance_samples - 1))
-        vx = 0
-        vy = 0
 
-        velocities = []
-        angles = []
+        solve = min_velocity_fixed_pitch(distance, vx, vy, pitch_deg=71.0)
+        if solve[0]:
+            distances.append(distance)
+            best_velocities.append(solve[1])
+        else:
+            # stop when it becomes infeasible, or comment this out if you'd rather skip gaps
+            continue
 
-        # Solve for minimum velocity
-        min_vel_solve = min_velocity(distance, vx, vy)
-        # If the position is possible, lerp between min velocity and max velocity
-        # to search the in between velocities
-        if min_vel_solve[0]:
-            velocities.append(min_vel_solve[1])
-            angles.append(np.rad2deg(min_vel_solve[2]))
-            prev_solve = min_vel_solve
-            for j in range(velocity_samples):
-                vel = lerp(
-                    min_vel_solve[1], max_shooter_velocity, 1 / (1.5**(velocity_samples - j - 1))
-                )
-                # Feed previous solve into new solve as an initial guess
-                solve = fixed_velocity(distance, vx, vy, vel, prev_solve[4])
-                if solve[0]:
-                    velocities.append(vel)
-                    angles.append(np.rad2deg(solve[2]))
-                    prev_solve = solve
-                    j += 1
-                else:
-                    break
-        ax.scatter(distance, velocities, angles)
+    # Print a simple table
+    print("\nDistance (m), Best velocity at 71deg (m/s)")
+    for d, v in zip(distances, best_velocities):
+        print(f"{d:.3f}, {v:.3f}")
+
+    # Plot distance vs best velocity
+    plt.figure()
+    plt.plot(distances, best_velocities, marker="o")
+    plt.xlabel("Distance (m)")
+    plt.ylabel("Minimum launch speed at 71° (m/s)")
+    plt.title("Best shooter velocity vs distance (pitch fixed at 71°)")
+    plt.grid(True)
     plt.show()
