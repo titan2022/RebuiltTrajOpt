@@ -19,6 +19,8 @@ from numpy.linalg import norm
 from sleipnir.autodiff import VariableMatrix, atan2, hypot
 from sleipnir.optimization import ExitStatus, Problem
 
+inch = 0.0254
+
 # Field dimensions
 field_width = 8.043  # m
 field_length = 16.518  # m
@@ -26,14 +28,21 @@ target_wrt_field = np.array(
     [
         [0],
         [0],
-        [72 * 0.0254],
+        [72 * inch],
         [0.0],
         [0.0],
         [0.0],
     ]
 )
 # Physical characteristics
-shooter_wrt_robot = np.array([[0.0], [0.0], [20 * 0.0254], [0.0], [0.0], [0.0]])
+shooter_wrt_robot = np.array([
+    [0.0],
+    [0.0],
+    [17.0585 * inch], # Shooter height
+    [0.0],
+    [0.0],
+    [0.0]
+])
 g = 9.81  # m/s²
 max_shooter_velocity = 30  # m/s
 ball_mass = 0.5 / 2.205  # kg
@@ -346,7 +355,7 @@ def fixed_velocity(distance, robot_vx, robot_vy, target_vel, prev_X):
 if __name__ == "__main__":
     # The closest you can get is (47 in)/2 = 0.5969 m
     # The center of a bot directly up to the HUB is (47 in)/2 + (110 in)/4 + 2.25 in + 1 in = 1.37795 m
-    start_distance = 1.3
+    start_distance = 1.0
     end_distance = field_length
 
     distance_samples = 100  # increase for smoother curve
